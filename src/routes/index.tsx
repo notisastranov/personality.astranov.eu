@@ -1,17 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
+  ANSWER_TRAINING,
   band,
   boardLine,
   CRIB,
   EDITIONS,
   editionItems,
   editionOf,
+  limitWord,
+  ORDINARY_LIMIT,
+  QUESTION_LIMIT,
   read,
+  SCALE_SEARCH,
   SCALES,
   score,
   type EditionId,
   type Mark,
+  type Profile as ScoreProfile,
+  type ScaleId,
 } from "@/lib/inventory";
 import { listSittings, saveSitting, type Sitting } from "@/lib/sittings";
 
@@ -279,10 +286,19 @@ function Cover({
         Practice
       </h1>
       <p className="mt-6 max-w-sm text-base leading-relaxed text-mist">
-        Original true or false lines, in four lengths. Start with the very
-        small form. Answer for the past few weeks. Each sitting stays in the
-        record.
+        MMPI means Minnesota Multiphasic Personality Inventory. The long clinical
+        form, the MMPI-2, is 567 true or false lines. This is not that test.
+        These lines are original. The long form matches that length so you can
+        practice the sitting.
       </p>
+      <ul className="mt-8 flex flex-col gap-4">
+        {ANSWER_TRAINING.map((rule) => (
+          <li key={rule.title}>
+            <p className="text-sm">{rule.title}</p>
+            <p className="mt-1 text-sm leading-relaxed text-mist">{rule.text}</p>
+          </li>
+        ))}
+      </ul>
       <ul className="mt-8 border-t border-rule">
         {EDITIONS.map((item) => {
           const active = item.id === edition;
@@ -361,7 +377,7 @@ function Book({
   onMark,
   onBack,
 }: {
-  items: readonly { id: number; text: string }[];
+  items: readonly { id: number; text: string; scale: ScaleId }[];
   index: number;
   answers: Record<number, Mark>;
   onMark: (mark: Mark) => void;
@@ -395,6 +411,13 @@ function Book({
       </div>
       <p className="text-xs tracking-widest text-mist uppercase tabular-nums">
         Item {item.id}
+      </p>
+      <p className="mt-3 text-sm">
+        {SCALES.find((scale) => scale.id === item.scale)?.cousin} ·{" "}
+        {SCALES.find((scale) => scale.id === item.scale)?.name}
+      </p>
+      <p className="mt-1 text-sm leading-relaxed text-mist">
+        Searches for {SCALE_SEARCH[item.scale]}
       </p>
       <h2 className="mt-4 font-serif text-3xl leading-snug tracking-tight">
         {item.text}
@@ -449,6 +472,75 @@ function Choice({
   );
 }
 
+function ProfileGraph({ profile }: { profile: ScoreProfile }) {
+  const scales = SCALES.filter((scale) => profile.max[scale.id] > 0);
+  const width = Math.max(320, scales.length * 56);
+  const height = 228;
+  const padL = 8;
+  const padR = 8;
+  const padT = 18;
+  const padB = 32;
+  const innerH = height - padT - padB;
+  const innerW = width - padL - padR;
+  const xOf = (i: number) =>
+    scales.length <= 1 ? padL + innerW / 2 : padL + (i * innerW) / (scales.length - 1);
+  const yOf = (ratio: number) => padT + (1 - Math.min(1, Math.max(0, ratio))) * innerH;
+  const yOrdinary = yOf(ORDINARY_LIMIT);
+  const yQuestion = yOf(QUESTION_LIMIT);
+  const points = scales.map((scale, i) => {
+    const ratio = profile.counts[scale.id] / profile.max[scale.id];
+    return { scale, ratio, x: xOf(i), y: yOf(ratio) };
+  });
+  const path = points.map((point, i) => `${i === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+
+  return (
+    <div className="mt-8 overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-auto w-full min-w-[320px]"
+        role="img"
+        aria-label="Practice profile with ordinary and question limits"
+      >
+        <line
+          x1={padL}
+          x2={width - padR}
+          y1={yOrdinary}
+          y2={yOrdinary}
+          stroke="#6e675f"
+          strokeDasharray="3 3"
+        />
+        <line x1={padL} x2={width - padR} y1={yQuestion} y2={yQuestion} stroke="#1e4d68" />
+        <text x={padL + 2} y={yQuestion - 4} fill="#1e4d68" fontSize="10">
+          Question limit
+        </text>
+        <text x={padL + 2} y={yOrdinary - 4} fill="#6e675f" fontSize="10">
+          Ordinary limit
+        </text>
+        <path d={path} fill="none" stroke="#1c1916" strokeWidth="1.5" />
+        {points.map((point) => (
+          <g key={point.scale.id}>
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r="3.5"
+              fill={point.ratio + 1e-9 >= QUESTION_LIMIT ? "#1e4d68" : "#1c1916"}
+            />
+            <text
+              x={point.x}
+              y={height - 12}
+              textAnchor="middle"
+              fill="#1c1916"
+              fontSize="11"
+            >
+              {point.scale.cousin}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 function Profile({
   edition,
   answers,
@@ -472,9 +564,14 @@ function Profile({
         How a board reads it
       </h2>
       <p className="mt-4 text-sm leading-relaxed text-mist">
-        The order used in military-school selection: validity first, then whether
-        the pattern would strain training. Not a board decision, and not a diagnosis.
+        MMPI means Minnesota Multiphasic Personality Inventory. On a real MMPI-2
+        the average is T = 50 and the usual elevation line is T = 65. This graph
+        cannot make T-scores. The lower line is one-third of the keyed lines,
+        the ordinary limit. The upper line is two-thirds, the question limit,
+        standing in for T = 65. Over it is not a school pass or fail. If a lie
+        scale is over it, the other scales are not yet believable.
       </p>
+      <ProfileGraph profile={profile} />
       <div className="mt-6 flex gap-6 text-sm text-mist tabular-nums">
         <p>Passed {profile.blank}</p>
         <p>Contradictions {profile.clash}</p>
@@ -486,7 +583,7 @@ function Profile({
         </p>
       )}
       <ul className="mt-8 flex flex-col gap-4">
-        {SCALES.map((scale) => {
+        {SCALES.filter((scale) => profile.max[scale.id] > 0).map((scale) => {
           const n = profile.counts[scale.id];
           const m = profile.max[scale.id];
           const level = band(n, m);
@@ -502,10 +599,13 @@ function Profile({
                 <div className="h-1 flex-1 bg-rule">
                   <div className="h-full bg-lake" style={{ width: `${pct}%` }} />
                 </div>
-                <p className="w-14 shrink-0 text-right text-xs text-mist tabular-nums">
-                  {level === "quiet" ? "Quiet" : level === "mixed" ? "Mixed" : "Raised"}
+                <p className="w-16 shrink-0 text-right text-xs text-mist tabular-nums">
+                  {limitWord(level)}
                 </p>
               </div>
+              <p className="text-sm leading-relaxed text-mist">
+                Searches for {SCALE_SEARCH[scale.id]}
+              </p>
               {note && <p className="text-sm leading-relaxed">{note}</p>}
             </li>
           );
@@ -519,9 +619,9 @@ function Profile({
         ))}
       </div>
       <p className="mt-6 text-sm leading-relaxed text-mist">
-        A real board also weighs K, a quieter kind of guarding, Pd, conflict with
-        rules and authority, and Pt, worry under training stress. This form does
-        not score those three.
+        {profile.max.correct > 0
+          ? "Every basic scale on this sitting is in the graph. Mf, the old interest scale, is not used."
+          : "Shorter forms leave out K, Hy, Pd, Pt, and Sc. Those are on the long form."}
       </p>
       {kept && (
         <p className="text-sm text-mist">This sitting is stored.</p>

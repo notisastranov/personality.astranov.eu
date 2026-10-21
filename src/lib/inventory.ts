@@ -1,19 +1,25 @@
 import { BANK } from "@/lib/bank";
+import { LONG_BANK } from "@/lib/long-bank";
 
 export type Mark = "T" | "F" | "?";
 
 export type ScaleId =
   | "guard"
   | "rare"
+  | "correct"
   | "distress"
   | "drive"
   | "apart"
   | "body"
-  | "wary";
+  | "wary"
+  | "social"
+  | "rules"
+  | "worry"
+  | "detached";
 
 export type Band = "quiet" | "mixed" | "raised";
 
-export type EditionId = "tiny" | "small" | "medium" | "full";
+export type EditionId = "tiny" | "small" | "medium" | "full" | "long";
 
 export type Item = {
   id: number;
@@ -45,6 +51,7 @@ export const EDITIONS: readonly {
   { id: "small", name: "Small", length: 16 },
   { id: "medium", name: "Medium", length: 49 },
   { id: "full", name: "Full", length: 112 },
+  { id: "long", name: "Long", length: 567 },
 ];
 
 const LENGTH: Record<EditionId, number> = {
@@ -52,10 +59,17 @@ const LENGTH: Record<EditionId, number> = {
   small: 16,
   medium: 49,
   full: 112,
+  long: 567,
 };
 
 export function isEdition(value: unknown): value is EditionId {
-  return value === "tiny" || value === "small" || value === "medium" || value === "full";
+  return (
+    value === "tiny" ||
+    value === "small" ||
+    value === "medium" ||
+    value === "full" ||
+    value === "long"
+  );
 }
 
 export function editionOf(value: unknown): EditionId {
@@ -65,11 +79,65 @@ export function editionOf(value: unknown): EditionId {
 export const SCALES: readonly ScaleInfo[] = [
   { id: "guard", name: "Guarded", cousin: "L" },
   { id: "rare", name: "Unusual", cousin: "F" },
-  { id: "distress", name: "Low mood", cousin: "D" },
+  { id: "correct", name: "Composed", cousin: "K" },
   { id: "body", name: "Body focus", cousin: "Hs" },
+  { id: "distress", name: "Low mood", cousin: "D" },
+  { id: "social", name: "Approval", cousin: "Hy" },
+  { id: "rules", name: "Rules", cousin: "Pd" },
   { id: "wary", name: "Wary", cousin: "Pa" },
-  { id: "apart", name: "Keeps apart", cousin: "Si" },
+  { id: "worry", name: "Worry", cousin: "Pt" },
+  { id: "detached", name: "Detached", cousin: "Sc" },
   { id: "drive", name: "Drive", cousin: "Ma" },
+  { id: "apart", name: "Keeps apart", cousin: "Si" },
+];
+
+/** What the item is searching for. Not the keyed answer. */
+export const SCALE_SEARCH: Record<ScaleId, string> = {
+  guard: "Lie. Uncommon virtue — a record that claims it never slips.",
+  rare: "Infrequency. Experiences most people do not report.",
+  correct: "Correction. A quieter performance of being fine and in control.",
+  body: "Hypochondriasis. Attention fastened on the body.",
+  distress: "Depression. Low mood, slowing, and loss of interest.",
+  social: "Hysteria. Needing approval, with the body carrying that strain.",
+  rules: "Conduct. Conflict with rules, authority, and consequences.",
+  wary: "Paranoia. Suspicion, and a sense of being used.",
+  worry: "Psychasthenia. Doubt, checking, and rumination.",
+  detached: "Alienation. Feeling removed, unreal, or loosely tied together.",
+  drive: "Hypomania. Speed, impatience, and a weak brake.",
+  apart: "Social introversion. Keeping apart from people.",
+};
+
+/** Practice limits. On a real MMPI-2 these roles belong to T = 50 and T = 65. */
+export const ORDINARY_LIMIT = 1 / 3;
+export const QUESTION_LIMIT = 2 / 3;
+
+export function limitWord(level: Band): string {
+  if (level === "raised") return "Over limit";
+  if (level === "mixed") return "Border";
+  return "Within limit";
+}
+
+export const ANSWER_TRAINING: readonly { title: string; text: string }[] = [
+  {
+    title: "Answer the weeks you had",
+    text: "Not the candidate you wish a board would meet. A performed record is what the lie items are built to catch.",
+  },
+  {
+    title: "Never and always",
+    text: "If a line says you never slip or always do the ideal thing, and that is not literally true, mark False. Admitting an ordinary fault is accuracy. It is not a trick, and it is what keeps the lie scale down.",
+  },
+  {
+    title: "Do not invent, and do not deny",
+    text: "Rare lines are rare. Mark them True only if they happened. Marking them to look interesting, or answering at random, is what lifts the infrequency scale.",
+  },
+  {
+    title: "Pass almost nothing",
+    text: "Pass only a line you truly cannot answer. A pile of blanks is its own bad result. The rest of the profile stops being readable.",
+  },
+  {
+    title: "Do not polish",
+    text: "The first honest mark is the accurate one. Going back to improve the picture is the lie pattern. This practice does not teach you how to hide a real trait.",
+  },
 ];
 
 const OPENING: readonly Item[] = [
@@ -91,7 +159,7 @@ const OPENING: readonly Item[] = [
   { id: 16, scale: "drive", when: "F", text: "I stay with a task until it is finished, even when it is dull." },
 ];
 
-export const ALL_ITEMS: readonly Item[] = [...OPENING, ...BANK];
+export const ALL_ITEMS: readonly Item[] = [...OPENING, ...BANK, ...LONG_BANK];
 
 /** The short booklet. Longer editions add lines after these. */
 export const ITEMS: readonly Item[] = OPENING;
@@ -111,16 +179,16 @@ export const CRIB: ReadonlyArray<readonly [string, string, string]> = [
   ["?", "Cannot Say", "Too many blanks, and a board treats the protocol as incomplete."],
   ["L", "Lie", "Uncommon virtue. Selection reads this as guarding, not as good character."],
   ["F", "Infrequency", "Rare items. A board settles this before it believes any other scale."],
-  ["K", "Correction", "Quieter guarding than L. Used to adjust other scales. Not scored here."],
+  ["K", "Correction", "Quieter guarding than L. A calm claim of being fine. Scored on the long form."],
   ["VRIN", "Inconsistency", "Pairs that should not both be true. Careless or random answering."],
   ["Hs", "Hypochondriasis", "Body focus. Read against physical training and medical fitness, not as a diagnosis."],
   ["D", "Depression", "Low mood and slowing. The emotional-stability question in a long course."],
-  ["Hy", "Hysteria", "Body complaints with a social face. Not scored here."],
-  ["Pd", "Psychopathic deviate", "Conflict with rules and authority. The conduct scale boards watch most. Not scored here."],
+  ["Hy", "Hysteria", "Need for approval, sometimes carried by the body. Scored on the long form."],
+  ["Pd", "Psychopathic deviate", "Conflict with rules and authority. The conduct scale boards watch. Scored on the long form."],
   ["Mf", "Masculinity–Femininity", "Old interest norms. Not used for selection in this form."],
   ["Pa", "Paranoia", "Suspicion. Read against trust in peers and in a chain of command."],
-  ["Pt", "Psychasthenia", "Worry and rumination under stress. A training-stress question. Not scored here."],
-  ["Sc", "Schizophrenia", "Alienation and unusual experience. Not scored here."],
+  ["Pt", "Psychasthenia", "Worry and rumination under stress. Scored on the long form."],
+  ["Sc", "Schizophrenia", "Feeling removed or unreal. Scored on the long form. Not a diagnosis."],
   ["Ma", "Hypomania", "Energy and a weak brake. Stamina if mild, impulse and risk if clearly raised."],
   ["Si", "Social introversion", "Keeping apart. Read against group living, teamwork, and being seen as a leader."],
 ];
@@ -158,6 +226,26 @@ export function boardLine(id: ScaleId, level: Band): string | null {
       "Energy is up. Mild drive can look like stamina. They still ask about finishing what was started.",
       "Drive is high. That is read as impatience and a weak brake — a discipline and safety question, not ambition.",
     ],
+    correct: [
+      "Some claim of being unruffled. K is the quieter lie: not 'never angry,' but 'I am simply fine.'",
+      "The record insists on composure. A board reads K as defensiveness wearing a calm face, and it stops trusting the heights under it.",
+    ],
+    social: [
+      "Some need to be liked, or the body joins a social strain. Noted, not treated as an illness.",
+      "Approval is carrying the profile. Read as needing to be liked, sometimes with physical complaints doing the talking.",
+    ],
+    rules: [
+      "Some friction with rules. A board asks whether that is a story or a habit.",
+      "Conflict with rules is high. This is the conduct question military schools watch. It is not a finding that you will break an order. It is a reason they will ask.",
+    ],
+    worry: [
+      "Some checking and doubt. Relevant to whether training stress would occupy the day.",
+      "Worry is high. Read as rumination under load, not as a diagnosis, and not as conscientiousness.",
+    ],
+    detached: [
+      "Some sense of being a step removed. Ask whether that was a bad week or the usual way the room feels.",
+      "Detachment is high. Read as feeling unreal or loosely tied together. A board does not call that a diagnosis from this practice form.",
+    ],
   };
   return lines[id][raised ? 1 : 0];
 }
@@ -176,11 +264,16 @@ function emptyCounts(): Record<ScaleId, number> {
   return {
     guard: 0,
     rare: 0,
+    correct: 0,
     distress: 0,
     drive: 0,
     apart: 0,
     body: 0,
     wary: 0,
+    social: 0,
+    rules: 0,
+    worry: 0,
+    detached: 0,
   };
 }
 
@@ -249,6 +342,7 @@ export function read(profile: Profile): string[] {
 
   const guard = band(profile.counts.guard, profile.max.guard);
   const rare = band(profile.counts.rare, profile.max.rare);
+  const correct = band(profile.counts.correct, profile.max.correct);
 
   const marked = profile.trueCount + profile.falseCount;
   const style =
@@ -272,17 +366,19 @@ export function read(profile: Profile): string[] {
     (scale) =>
       scale.id !== "guard" &&
       scale.id !== "rare" &&
+      scale.id !== "correct" &&
       band(profile.counts[scale.id], profile.max[scale.id]) === "raised",
   );
-  const validityLoud = guard === "raised" || rare === "raised" || profile.clash >= 2 || style;
+  const validityLoud =
+    guard === "raised" || rare === "raised" || correct === "raised" || profile.clash >= 2 || style;
 
   if (validityLoud && contentRaised) {
     lines.push(
       "Training scales did move. A board would not use them until the validity problem is settled.",
     );
-  } else if (lines.length === 0 && !contentRaised && guard === "quiet" && rare === "quiet") {
+  } else if (lines.length === 0 && !contentRaised && guard === "quiet" && rare === "quiet" && correct !== "raised") {
     lines.push(
-      "Nothing stands out. A quiet protocol is what selection hopes to see. They still interview, and they still look at K, Pd, and Pt, which this form does not score.",
+      "Nothing stands out. A quiet protocol is what selection hopes to see. They still interview. A real report also has norms this practice form does not have.",
     );
   }
 

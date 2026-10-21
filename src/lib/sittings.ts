@@ -28,7 +28,7 @@ function cleanAnswers(raw: unknown): Record<string, Mark> {
   const answers: Record<string, Mark> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     const id = Number(key);
-    if (!Number.isInteger(id) || id < 1 || id > 112) continue;
+    if (!Number.isInteger(id) || id < 1 || id > 567) continue;
     if (value === "T" || value === "F" || value === "?") answers[String(id)] = value;
   }
   return answers;
@@ -68,7 +68,7 @@ export const saveSitting = createServerFn({ method: "POST" })
     }
     const edition = editionOf(raw.edition);
     const index = typeof raw.index === "number" ? Math.floor(raw.index) : 0;
-    if (index < 0 || index > 111) throw new Error("Bad index");
+    if (index < 0 || index > 566) throw new Error("Bad index");
     return {
       id,
       edition,
