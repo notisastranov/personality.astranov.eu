@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   band,
+  boardLine,
   CRIB,
   EDITIONS,
   editionItems,
@@ -468,8 +469,12 @@ function Profile({
     <section className="flex flex-1 flex-col">
       <p className="text-xs tracking-widest text-mist uppercase">Practice profile</p>
       <h2 className="mt-3 font-serif text-4xl leading-tight tracking-tight">
-        What rose
+        How a board reads it
       </h2>
+      <p className="mt-4 text-sm leading-relaxed text-mist">
+        The order used in military-school selection: validity first, then whether
+        the pattern would strain training. Not a board decision, and not a diagnosis.
+      </p>
       <div className="mt-6 flex gap-6 text-sm text-mist tabular-nums">
         <p>Passed {profile.blank}</p>
         <p>Contradictions {profile.clash}</p>
@@ -486,18 +491,22 @@ function Profile({
           const m = profile.max[scale.id];
           const level = band(n, m);
           const pct = m === 0 ? 0 : Math.round((n / m) * 100);
+          const note = boardLine(scale.id, level);
           return (
-            <li key={scale.id} className="flex items-center gap-3">
-              <div className="w-24 shrink-0">
-                <p className="text-sm">{scale.name}</p>
-                <p className="text-xs text-mist">{scale.cousin}</p>
+            <li key={scale.id} className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <div className="w-24 shrink-0">
+                  <p className="text-sm">{scale.name}</p>
+                  <p className="text-xs text-mist">{scale.cousin}</p>
+                </div>
+                <div className="h-1 flex-1 bg-rule">
+                  <div className="h-full bg-lake" style={{ width: `${pct}%` }} />
+                </div>
+                <p className="w-14 shrink-0 text-right text-xs text-mist tabular-nums">
+                  {level === "quiet" ? "Quiet" : level === "mixed" ? "Mixed" : "Raised"}
+                </p>
               </div>
-              <div className="h-1 flex-1 bg-rule">
-                <div className="h-full bg-lake" style={{ width: `${pct}%` }} />
-              </div>
-              <p className="w-14 shrink-0 text-right text-xs text-mist tabular-nums">
-                {level === "quiet" ? "Quiet" : level === "mixed" ? "Mixed" : "Raised"}
-              </p>
+              {note && <p className="text-sm leading-relaxed">{note}</p>}
             </li>
           );
         })}
@@ -509,6 +518,11 @@ function Profile({
           </p>
         ))}
       </div>
+      <p className="mt-6 text-sm leading-relaxed text-mist">
+        A real board also weighs K, a quieter kind of guarding, Pd, conflict with
+        rules and authority, and Pt, worry under training stress. This form does
+        not score those three.
+      </p>
       {kept && (
         <p className="text-sm text-mist">This sitting is stored.</p>
       )}
@@ -536,8 +550,8 @@ function Crib({ onBack }: { onBack: () => void }) {
         Scale names
       </h2>
       <p className="mt-4 text-sm leading-relaxed text-mist">
-        Names you will see on a real Minnesota report. This booklet only scores
-        seven cousins of them: L, F, D, Hs, Pa, Si, Ma.
+        Names on a Minnesota report, and what a military-school board is asking
+        when it sees them. This booklet only scores seven: L, F, D, Hs, Pa, Si, Ma.
       </p>
       <ul className="mt-8 flex flex-col">
         {CRIB.map(([code, name, gloss]) => (

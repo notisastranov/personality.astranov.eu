@@ -108,31 +108,59 @@ export function editionClashes(
 }
 
 export const CRIB: ReadonlyArray<readonly [string, string, string]> = [
-  ["?", "Cannot Say", "Too many blanks, and the rest of a protocol gets shaky."],
-  ["L", "Lie", "Uncommon virtue. The record looks too perfect."],
-  ["F", "Infrequency", "Rare experiences. Read this before believing symptoms."],
-  ["K", "Correction", "A quieter kind of guarding than L. Not scored here."],
-  ["VRIN", "Inconsistency", "Pairs that should not be endorsed together."],
-  ["Hs", "Hypochondriasis", "Concern about the body."],
-  ["D", "Depression", "Low mood and slowing."],
+  ["?", "Cannot Say", "Too many blanks, and a board treats the protocol as incomplete."],
+  ["L", "Lie", "Uncommon virtue. Selection reads this as guarding, not as good character."],
+  ["F", "Infrequency", "Rare items. A board settles this before it believes any other scale."],
+  ["K", "Correction", "Quieter guarding than L. Used to adjust other scales. Not scored here."],
+  ["VRIN", "Inconsistency", "Pairs that should not both be true. Careless or random answering."],
+  ["Hs", "Hypochondriasis", "Body focus. Read against physical training and medical fitness, not as a diagnosis."],
+  ["D", "Depression", "Low mood and slowing. The emotional-stability question in a long course."],
   ["Hy", "Hysteria", "Body complaints with a social face. Not scored here."],
-  ["Pd", "Psychopathic deviate", "Conflict with rules. Not scored here."],
-  ["Mf", "Masculinity–Femininity", "Old interest norms. Not in this form."],
-  ["Pa", "Paranoia", "Suspicion, a sense of being used."],
-  ["Pt", "Psychasthenia", "Anxiety, doubt, rumination. Not scored here."],
+  ["Pd", "Psychopathic deviate", "Conflict with rules and authority. The conduct scale boards watch most. Not scored here."],
+  ["Mf", "Masculinity–Femininity", "Old interest norms. Not used for selection in this form."],
+  ["Pa", "Paranoia", "Suspicion. Read against trust in peers and in a chain of command."],
+  ["Pt", "Psychasthenia", "Worry and rumination under stress. A training-stress question. Not scored here."],
   ["Sc", "Schizophrenia", "Alienation and unusual experience. Not scored here."],
-  ["Ma", "Hypomania", "Energy, speed, impatience."],
-  ["Si", "Social introversion", "Keeping apart from people."],
+  ["Ma", "Hypomania", "Energy and a weak brake. Stamina if mild, impulse and risk if clearly raised."],
+  ["Si", "Social introversion", "Keeping apart. Read against group living, teamwork, and being seen as a leader."],
 ];
 
-const CONTENT_LINE: Record<Exclude<ScaleId, "guard" | "rare">, string> = {
-  distress:
-    "Low mood is what rose. That is the shape of a depression-style elevation, not a diagnosis.",
-  body: "Attention to the body is what rose. That is a somatic shape, not a medical finding.",
-  wary: "Distrust is what rose. That is a suspicion shape, not a finding about other people.",
-  apart: "Preference for being apart is what rose. That is an introversion shape.",
-  drive: "Energy and impatience are what rose. That is a hypomania-style shape, not a diagnosis.",
-};
+/** How a military-school board reads the cousin of this scale. Not a decision. */
+export function boardLine(id: ScaleId, level: Band): string | null {
+  if (level === "quiet") return null;
+  const raised = level === "raised";
+  const lines: Record<ScaleId, readonly [string, string]> = {
+    guard: [
+      "Some uncommon virtue. A board calls that mild guarding, not good character.",
+      "The booklet looks too perfect. L is read as defensiveness. It is not scored as conduct.",
+    ],
+    rare: [
+      "A few rare items. They are noted, and the rest is read more carefully.",
+      "Unusual items are frequent. F is settled before any training scale is believed. A high F can stop a file.",
+    ],
+    distress: [
+      "Some low mood. A board asks whether energy will hold through a long, stressful course.",
+      "Low mood is the shape that rose. That is the emotional-stability question, not a diagnosis of depression.",
+    ],
+    body: [
+      "Some attention to the body. Asked against physical training, not treated as a medical finding.",
+      "Body focus is high. Selection asks whether that concern would interfere with training and duty.",
+    ],
+    wary: [
+      "Some distrust. Relevant to roommates, peers, and taking orders without feeling singled out.",
+      "Suspicion is high. Read as trouble trusting the group or the chain of command, not as proof that anyone is against you.",
+    ],
+    apart: [
+      "Some preference for being apart. Group living will be part of the interview, not an automatic problem.",
+      "Keeping apart is marked. Boards ask how that sits with barracks life, teamwork, and leadership visibility.",
+    ],
+    drive: [
+      "Energy is up. Mild drive can look like stamina. They still ask about finishing what was started.",
+      "Drive is high. That is read as impatience and a weak brake — a discipline and safety question, not ambition.",
+    ],
+  };
+  return lines[id][raised ? 1 : 0];
+}
 
 export type Profile = {
   counts: Record<ScaleId, number>;
@@ -204,35 +232,23 @@ export function read(profile: Profile): string[] {
 
   if (profile.blank >= Math.max(2, Math.round(size * 0.25))) {
     lines.push(
-      "Several items were passed. A high Cannot Say count makes the rest of a protocol hard to trust.",
+      "Too many items were passed. A board treats a high Cannot Say count as an incomplete protocol and does not trust the rest.",
     );
   }
 
   if (profile.clash >= 2) {
     lines.push(
-      "More than one pair contradicts. Treat this as a consistency problem before reading any scale.",
+      "More than one pair contradicts. That is the inconsistency problem (the VRIN idea). Content scales are not believed until answering looks careful.",
     );
   } else if (profile.clash === 1) {
     const [a, b] = profile.clashPairs[0];
     lines.push(
-      `Items ${a} and ${b} were both True. One slip is common; note it and keep going.`,
+      `Items ${a} and ${b} were both True. One inconsistent pair is common. It is noted, not treated as a failed protocol.`,
     );
   }
 
   const guard = band(profile.counts.guard, profile.max.guard);
   const rare = band(profile.counts.rare, profile.max.rare);
-
-  if (guard === "raised") {
-    lines.push(
-      "Virtue items are marked in the extreme. That pattern is read as guarding, not as proof of a spotless record.",
-    );
-  }
-
-  if (rare === "raised") {
-    lines.push(
-      "Unusual experiences are endorsed often. On a real report that is read before any symptom scale is believed.",
-    );
-  }
 
   const marked = profile.trueCount + profile.falseCount;
   const style =
@@ -243,36 +259,32 @@ export function read(profile: Profile): string[] {
   if (style && profile.clash < 2) {
     if (profile.trueCount / marked >= 0.85) {
       lines.push(
-        "Nearly every item is True. That response style can lift many scales at once.",
+        "Nearly every item is True. All-true answering can lift many scales at once, so a board discounts the heights.",
       );
     } else {
       lines.push(
-        "Nearly every item is False. A nay-saying style can flatten scales that are keyed True.",
+        "Nearly every item is False. All-false answering flattens scales that are keyed True, so a quiet profile may be a style, not stability.",
       );
     }
   }
 
-  const validityLoud =
-    guard === "raised" || rare === "raised" || profile.clash >= 2 || style;
+  const contentRaised = SCALES.some(
+    (scale) =>
+      scale.id !== "guard" &&
+      scale.id !== "rare" &&
+      band(profile.counts[scale.id], profile.max[scale.id]) === "raised",
+  );
+  const validityLoud = guard === "raised" || rare === "raised" || profile.clash >= 2 || style;
 
-  if (!validityLoud) {
-    const content = SCALES.filter(
-      (scale) => scale.id !== "guard" && scale.id !== "rare",
-    )
-      .map((scale) => ({
-        id: scale.id as Exclude<ScaleId, "guard" | "rare">,
-        ratio: profile.max[scale.id] ? profile.counts[scale.id] / profile.max[scale.id] : 0,
-        level: band(profile.counts[scale.id], profile.max[scale.id]),
-      }))
-      .sort((a, b) => b.ratio - a.ratio);
-
-    const top = content[0];
-    if (top && top.level === "raised") {
-      lines.push(CONTENT_LINE[top.id]);
-    } else if (lines.length === 0) {
-      lines.push("Nothing stands out. Quiet protocols are read by what fails to rise.");
-    }
+  if (validityLoud && contentRaised) {
+    lines.push(
+      "Training scales did move. A board would not use them until the validity problem is settled.",
+    );
+  } else if (lines.length === 0 && !contentRaised && guard === "quiet" && rare === "quiet") {
+    lines.push(
+      "Nothing stands out. A quiet protocol is what selection hopes to see. They still interview, and they still look at K, Pd, and Pt, which this form does not score.",
+    );
   }
 
-  return lines.slice(0, 3);
+  return lines.slice(0, 4);
 }
