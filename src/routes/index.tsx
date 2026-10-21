@@ -9,6 +9,7 @@ import {
   score,
   type Mark,
 } from "@/lib/inventory";
+import { listSittings, saveSitting, type Sitting } from "@/lib/sittings";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -17,12 +18,13 @@ const STORAGE_KEY = "minnesota-practice-v1";
 type Phase = "cover" | "book" | "profile" | "crib";
 
 type Save = {
+  id: string | null;
   phase: Phase;
   index: number;
   answers: Record<number, Mark>;
 };
 
-const EMPTY: Save = { phase: "cover", index: 0, answers: {} };
+const EMPTY: Save = { id: null, phase: "cover", index: 0, answers: {} };
 
 function loadSave(): Save {
   try {
@@ -31,6 +33,7 @@ function loadSave(): Save {
     const parsed = JSON.parse(raw) as Save;
     if (!parsed || typeof parsed.index !== "number" || !parsed.answers) return EMPTY;
     return {
+      id: typeof parsed.id === "string" ? parsed.id : null,
       phase: parsed.phase ?? "cover",
       index: Math.min(Math.max(0, parsed.index), ITEMS.length - 1),
       answers: parsed.answers,
@@ -40,13 +43,32 @@ function loadSave(): Save {
   }
 }
 
+function answerCount(answers: Record<number, Mark> | Record<string, Mark>): number {
+  return Object.keys(answers).length;
+}
+
+function when(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "Earlier";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Athens",
+  }).format(date);
+}
+
 function Home() {
   const [save, setSave] = useState<Save>(EMPTY);
   const [ready, setReady] = useState(false);
+  const [kept, setKept] = useState(false);
+  const [past, setPast] = useState<Sitting[]>([]);
 
   useEffect(() => {
     setSave(loadSave());
     setReady(true);
+    void listSittings().then(setPast).catch(() => setPast([]));
   }, []);
 
   useEffect(() => {
@@ -54,21 +76,69 @@ function Home() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
   }, [save, ready]);
 
+  useEffect(() => {
+    if (!ready || !save.id) return;
+    if (save.phase === "cover" && answerCount(save.answers) === 0) return;
+    const timer = window.setTimeout(() => {
+      void saveSitting({
+        data: {
+          id: save.id,
+          phase: save.phase,
+          index: save.index,
+          answers: save.answers,
+        },
+      })
+        .then((result) => {
+          setKept(result.kept);
+          if (result.kept) void listSittings().then(setPast).catch(() => undefined);
+        })
+        .catch(() => setKept(false));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [save, ready]);
+
   function reset() {
-    setSave(EMPTY);
+    setSave({ ...EMPTY, id: crypto.randomUUID() });
+    setKept(false);
+  }
+
+  function resume(row: Sitting) {
+    const answers: Record<number, Mark> = {};
+    for (const [key, mark] of Object.entries(row.answers ?? {})) {
+      if (mark === "T" || mark === "F" || mark === "?") answers[Number(key)] = mark;
+    }
+    setSave({
+      id: row.id,
+      phase: row.phase === "crib" ? "profile" : row.phase,
+      index: Math.min(Math.max(0, row.item_index), ITEMS.length - 1),
+      answers,
+    });
   }
 
   return (
     <main data-ready={ready ? "true" : "false"} className="min-h-dvh bg-paper text-ink">
       <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-6 pt-8 pb-24">
-        <Header phase={save.phase} index={save.index} onCover={() => setSave((s) => ({ ...s, phase: "cover" }))} />
+        <Header
+          phase={save.phase}
+          index={save.index}
+          onCover={() => setSave((s) => ({ ...s, phase: "cover" }))}
+        />
         {save.phase === "cover" && (
           <Cover
             ready={ready}
+            kept={kept}
+            continuing={answerCount(save.answers) > 0}
+            past={past}
             onStart={() => {
               if (!ready) return;
-              setSave((s) => ({ ...s, phase: "book", index: 0 }));
+              setSave((s) => ({
+                ...s,
+                id: s.id ?? crypto.randomUUID(),
+                phase: "book",
+                index: answerCount(s.answers) > 0 ? s.index : 0,
+              }));
             }}
+            onResume={resume}
             onCrib={() => {
               if (!ready) return;
               setSave((s) => ({ ...s, phase: "crib" }));
@@ -84,6 +154,7 @@ function Home() {
               const answers = { ...save.answers, [item.id]: mark };
               const last = save.index >= ITEMS.length - 1;
               setSave({
+                id: save.id ?? crypto.randomUUID(),
                 phase: last ? "profile" : "book",
                 index: last ? save.index : save.index + 1,
                 answers,
@@ -101,6 +172,7 @@ function Home() {
         {save.phase === "profile" && (
           <Profile
             answers={save.answers}
+            kept={kept}
             onAgain={reset}
             onCrib={() => setSave((s) => ({ ...s, phase: "crib" }))}
           />
@@ -147,11 +219,19 @@ function Header({
 
 function Cover({
   ready,
+  kept,
+  continuing,
+  past,
   onStart,
+  onResume,
   onCrib,
 }: {
   ready: boolean;
+  kept: boolean;
+  continuing: boolean;
+  past: Sitting[];
   onStart: () => void;
+  onResume: (row: Sitting) => void;
   onCrib: () => void;
 }) {
   return (
@@ -164,7 +244,8 @@ function Cover({
       </h1>
       <p className="mt-6 max-w-sm text-base leading-relaxed text-mist">
         Sixteen original true or false lines, so you can rehearse the booklet
-        before a real sitting. Answer for the past few weeks.
+        before a real sitting. Answer for the past few weeks. Each finished
+        booklet stays in the record.
       </p>
       <div className="mt-10 flex flex-col gap-3">
         <button
@@ -173,7 +254,7 @@ function Cover({
           disabled={!ready}
           className="h-12 bg-lake px-6 text-on-lake disabled:opacity-60"
         >
-          Open booklet
+          {continuing ? "Continue" : "Open booklet"}
         </button>
         <button
           type="button"
@@ -183,8 +264,32 @@ function Cover({
           Scale names
         </button>
       </div>
+      {past.length > 0 && (
+        <ul className="mt-10 border-t border-rule">
+          {past.map((row) => {
+            const answered = row.profile?.answered ?? answerCount(row.answers ?? {});
+            const done = answered >= ITEMS.length;
+            return (
+              <li key={row.id} className="border-b border-rule">
+                <button
+                  type="button"
+                  onClick={() => onResume(row)}
+                  className="flex w-full items-baseline justify-between py-3 text-left"
+                >
+                  <span className="text-sm">{when(row.updated_at)}</span>
+                  <span className="text-xs text-mist tabular-nums">
+                    {done ? "Finished" : `${answered} of 16`}
+                    {row.profile?.clash ? ` · ${row.profile.clash} clash` : ""}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       <p className="mt-8 text-sm leading-relaxed text-mist">
         Not the MMPI. Not a diagnosis. Raw counts, not T-scores.
+        {kept ? " Last sitting is stored." : ""}
       </p>
     </section>
   );
@@ -285,10 +390,12 @@ function Choice({
 
 function Profile({
   answers,
+  kept,
   onAgain,
   onCrib,
 }: {
   answers: Record<number, Mark>;
+  kept: boolean;
   onAgain: () => void;
   onCrib: () => void;
 }) {
@@ -340,9 +447,12 @@ function Profile({
           </p>
         ))}
       </div>
+      {kept && (
+        <p className="text-sm text-mist">This sitting is stored.</p>
+      )}
       <div className="mt-auto flex flex-col gap-3 pt-8">
         <button type="button" onClick={onAgain} className="h-12 bg-lake px-6 text-on-lake">
-          Start over
+          New sitting
         </button>
         <button
           type="button"
