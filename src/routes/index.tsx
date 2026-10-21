@@ -10,12 +10,14 @@ import {
   editionOf,
   LIE_SCALES,
   limitWord,
+  lookingFor,
   ORDINARY_LIMIT,
   QUESTION_LIMIT,
   read,
   SCALE_SEARCH,
   SCALES,
   score,
+  T_SCORE,
   type EditionId,
   type Mark,
   type Profile as ScoreProfile,
@@ -378,7 +380,7 @@ function Book({
   onMark,
   onBack,
 }: {
-  items: readonly { id: number; text: string; scale: ScaleId }[];
+  items: readonly { id: number; text: string; scale: ScaleId; when: "T" | "F" }[];
   index: number;
   answers: Record<number, Mark>;
   onMark: (mark: Mark) => void;
@@ -417,12 +419,10 @@ function Book({
         {SCALES.find((scale) => scale.id === item.scale)?.cousin} ·{" "}
         {SCALES.find((scale) => scale.id === item.scale)?.name}
       </p>
-      <p className="mt-1 text-sm leading-relaxed text-mist">
-        Searches for {SCALE_SEARCH[item.scale]}
-      </p>
       <h2 className="mt-4 font-serif text-3xl leading-snug tracking-tight">
         {item.text}
       </h2>
+      <p className="mt-4 text-sm leading-relaxed text-mist">{lookingFor(item)}</p>
       <div className="mt-10 grid grid-cols-2 gap-3">
         <Choice label="True" mark="T" chosen={chosen} onMark={onMark} />
         <Choice label="False" mark="F" chosen={chosen} onMark={onMark} />
@@ -564,14 +564,13 @@ function Profile({
       <h2 className="mt-3 font-serif text-4xl leading-tight tracking-tight">
         How a board reads it
       </h2>
-      <p className="mt-4 text-sm leading-relaxed text-mist">
-        MMPI means Minnesota Multiphasic Personality Inventory. On a real MMPI-2
-        the average is T = 50 and the usual elevation line is T = 65. This graph
-        cannot make T-scores. The lower line is one-third of the keyed lines,
-        the ordinary limit. The upper line is two-thirds, the question limit,
-        standing in for T = 65. Over it is not a school pass or fail. If a lie
-        scale is over it, the other scales are not yet believable.
-      </p>
+      <div className="mt-4 flex flex-col gap-3">
+        {T_SCORE.map((line) => (
+          <p key={line} className="text-sm leading-relaxed text-mist">
+            {line}
+          </p>
+        ))}
+      </div>
       <ProfileGraph profile={profile} />
       <div className="mt-6 flex gap-6 text-sm text-mist tabular-nums">
         <p>Passed {profile.blank}</p>

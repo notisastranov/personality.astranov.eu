@@ -91,7 +91,70 @@ export const SCALES: readonly ScaleInfo[] = [
   { id: "apart", name: "Keeps apart", cousin: "Si" },
 ];
 
-/** What the item is searching for. Not the keyed answer. */
+/** What this particular line is looking for, and which mark counts toward the scale. */
+const LOOKING: Record<ScaleId, Record<"T" | "F", string>> = {
+  guard: {
+    T: "Looking for a claim of uncommon virtue in this line.",
+    F: "Looking for whether you deny the ordinary fault in this line.",
+  },
+  rare: {
+    T: "Looking for the rare experience named in this line.",
+    F: "Looking for whether you deny that things have stayed ordinary.",
+  },
+  correct: {
+    T: "Looking for a claim, in this line, that you are fine and in control.",
+    F: "Looking for whether you deny an ordinary strain.",
+  },
+  body: {
+    T: "Looking for attention fastened on the body sensation in this line.",
+    F: "Looking for whether you deny that the body stays in the background.",
+  },
+  distress: {
+    T: "Looking for the low mood named in this line.",
+    F: "Looking for whether you deny that mood has been all right.",
+  },
+  social: {
+    T: "Looking for a need to be liked, or the body carrying that strain.",
+    F: "Looking for whether you deny that approval is necessary.",
+  },
+  rules: {
+    T: "Looking for friction with a rule or an authority in this line.",
+    F: "Looking for whether you deny that you keep to the same limit as other people.",
+  },
+  wary: {
+    T: "Looking for suspicion, or a sense of being used, in this line.",
+    F: "Looking for whether you deny ordinary trust.",
+  },
+  worry: {
+    T: "Looking for checking, doubt, or rumination in this line.",
+    F: "Looking for whether you deny that a worry can be left.",
+  },
+  detached: {
+    T: "Looking for feeling removed, unreal, or loosely tied together.",
+    F: "Looking for whether you deny feeling present and continuous.",
+  },
+  drive: {
+    T: "Looking for speed, impatience, or a weak brake in this line.",
+    F: "Looking for whether you deny that your pace is steady.",
+  },
+  apart: {
+    T: "Looking for a preference for being apart from people.",
+    F: "Looking for whether you deny that company is welcome.",
+  },
+};
+
+export function lookingFor(item: Item): string {
+  const code = SCALES.find((scale) => scale.id === item.scale)?.cousin ?? "";
+  const mark = item.when === "T" ? "True" : "False";
+  return `${LOOKING[item.scale][item.when]} ${mark} is the mark that counts toward ${code}.`;
+}
+
+export const T_SCORE = [
+  "A T-score puts a raw count on a common ruler. The comparison group’s average is set at 50. Every 10 points is one standard deviation, the usual spread of that group.",
+  "T = 50 is average. T = 60 is one step up. T = 65, one and a half steps up, is the line on an MMPI-2 where a scale stops looking ordinary. T = 70 is clearly high. The arithmetic is 50 + 10 × (your raw score − the group average) ÷ the group’s spread.",
+  "This practice form has no norm group, so it cannot make a real T-score. The graph uses the share of keyed lines instead. Two-thirds stands in for the job T = 65 does. It is not itself a T-score, and it is not a school pass or fail.",
+];
+
 export const SCALE_SEARCH: Record<ScaleId, string> = {
   guard: "Lie. Uncommon virtue — a record that claims it never slips.",
   rare: "Infrequency. Experiences most people do not report.",
