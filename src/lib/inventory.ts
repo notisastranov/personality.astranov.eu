@@ -117,6 +117,24 @@ export function limitWord(level: Band): string {
   return "Within limit";
 }
 
+export const LIE_SCALES: readonly { code: string; name: string; text: string }[] = [
+  {
+    code: "L",
+    name: "Lie",
+    text: "The obvious one. These lines claim an uncommon virtue: never angry, never a small lie, always fair. Ordinary people cannot honestly endorse a stack of them. When L is over the limit, the booklet looks performed. A board reads that as guarding, not as good character. A high L does not mean you are a liar in daily life. It means the answers claimed a purity almost no one has.",
+  },
+  {
+    code: "K",
+    name: "Correction",
+    text: "The quieter one. Not “I have never lied.” More “I am fine, in control, hard to rattle.” Careful people raise K while L stays low. On a real MMPI-2, a fraction of K is added to some clinical scales. This form only shows whether that composed face rose. A high K can hide distress and make the other scales look calmer than the person is. A very low K is the opposite: unusually open, or playing problems up.",
+  },
+  {
+    code: "F",
+    name: "Not a lie scale",
+    text: "F is a validity scale, and it gets lumped in with the lie scales. It points the other way. F searches for rare experiences. High F looks like fake-bad, careless answering, or a genuinely unusual life. High L is someone trying to look too good. High F is someone not looking good. If L and F are both over the limit, the booklet is pulling both ways and should not be believed.",
+  },
+];
+
 export const ANSWER_TRAINING: readonly { title: string; text: string }[] = [
   {
     title: "Answer the weeks you had",

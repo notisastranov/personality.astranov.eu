@@ -8,6 +8,7 @@ import {
   EDITIONS,
   editionItems,
   editionOf,
+  LIE_SCALES,
   limitWord,
   ORDINARY_LIMIT,
   QUESTION_LIMIT,
@@ -331,7 +332,7 @@ function Cover({
           onClick={onCrib}
           className="h-12 border border-rule bg-sheet px-6 text-ink"
         >
-          Scale names
+          Lie scales
         </button>
       </div>
       {past.length > 0 && (
@@ -635,7 +636,7 @@ function Profile({
           onClick={onCrib}
           className="h-12 border border-rule bg-sheet px-6 text-ink"
         >
-          Scale names
+          Lie scales
         </button>
       </div>
     </section>
@@ -647,11 +648,32 @@ function Crib({ onBack }: { onBack: () => void }) {
     <section className="flex flex-1 flex-col">
       <p className="text-xs tracking-widest text-mist uppercase">Score report</p>
       <h2 className="mt-3 font-serif text-4xl leading-tight tracking-tight">
-        Scale names
+        Lie scales
       </h2>
       <p className="mt-4 text-sm leading-relaxed text-mist">
-        Names on a Minnesota report, and what a military-school board is asking
-        when it sees them. This booklet only scores seven: L, F, D, Hs, Pa, Si, Ma.
+        Two scales ask whether the booklet is trying to look too good. L is
+        obvious. K is quieter. F is not a lie scale. It points the other way.
+      </p>
+      <ul className="mt-8 flex flex-col gap-6">
+        {LIE_SCALES.map((scale) => (
+          <li key={scale.code}>
+            <p className="text-sm">
+              {scale.code} · {scale.name}
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-mist">{scale.text}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-6 text-sm leading-relaxed">
+        High L with a quiet K is an obvious performance. High K with a quiet L
+        is a smoother one. Neither is a school pass or fail. Both mean the other
+        scales are not yet trustworthy.
+      </p>
+      <h3 className="mt-10 font-serif text-2xl tracking-tight">The other scales</h3>
+      <p className="mt-3 text-sm leading-relaxed text-mist">
+        Names on a Minnesota report, and what a board is asking when it sees
+        them. Shorter forms score only some of these. The long form scores the
+        rest except Mf.
       </p>
       <ul className="mt-8 flex flex-col">
         {CRIB.map(([code, name, gloss]) => (
