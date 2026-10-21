@@ -1,10 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
-import { score, type Mark } from "@/lib/inventory";
+import { editionOf, score, type EditionId, type Mark } from "@/lib/inventory";
 
 export type SittingPhase = "cover" | "book" | "profile" | "crib";
 
 export type Sitting = {
   id: string;
+  edition: EditionId;
   phase: SittingPhase;
   item_index: number;
   answers: Record<string, Mark>;
@@ -27,7 +28,7 @@ function cleanAnswers(raw: unknown): Record<string, Mark> {
   const answers: Record<string, Mark> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     const id = Number(key);
-    if (!Number.isInteger(id) || id < 1 || id > 16) continue;
+    if (!Number.isInteger(id) || id < 1 || id > 112) continue;
     if (value === "T" || value === "F" || value === "?") answers[String(id)] = value;
   }
   return answers;
@@ -38,7 +39,7 @@ export const listSittings = createServerFn({ method: "GET" }).handler(
     const env = envPair();
     if (!env) return [];
     const response = await fetch(
-      `${env.url}/rest/v1/personality_sittings?select=id,phase,item_index,answers,profile,created_at,updated_at&order=updated_at.desc&limit=24`,
+      `${env.url}/rest/v1/personality_sittings?select=id,edition,phase,item_index,answers,profile,created_at,updated_at&order=updated_at.desc&limit=24`,
       {
         headers: {
           apikey: env.key,
@@ -48,7 +49,8 @@ export const listSittings = createServerFn({ method: "GET" }).handler(
     );
     if (!response.ok) return [];
     const rows = (await response.json()) as Sitting[];
-    return Array.isArray(rows) ? rows : [];
+    if (!Array.isArray(rows)) return [];
+    return rows.map((row) => ({ ...row, edition: editionOf(row.edition) }));
   },
 );
 
@@ -64,10 +66,12 @@ export const saveSitting = createServerFn({ method: "POST" })
     if (typeof phase !== "string" || !PHASES.has(phase as SittingPhase)) {
       throw new Error("Bad phase");
     }
+    const edition = editionOf(raw.edition);
     const index = typeof raw.index === "number" ? Math.floor(raw.index) : 0;
-    if (index < 0 || index > 15) throw new Error("Bad index");
+    if (index < 0 || index > 111) throw new Error("Bad index");
     return {
       id,
+      edition,
       phase: phase as SittingPhase,
       index,
       answers: cleanAnswers(raw.answers),
@@ -80,6 +84,7 @@ export const saveSitting = createServerFn({ method: "POST" })
       Object.fromEntries(
         Object.entries(data.answers).map(([key, mark]) => [Number(key), mark]),
       ),
+      data.edition,
     );
     const response = await fetch(
       `${env.url}/rest/v1/personality_sittings?on_conflict=id`,
@@ -93,6 +98,7 @@ export const saveSitting = createServerFn({ method: "POST" })
         },
         body: JSON.stringify({
           id: data.id,
+          edition: data.edition,
           phase: data.phase,
           item_index: data.index,
           answers: data.answers,

@@ -3,10 +3,13 @@ import { useEffect, useState } from "react";
 import {
   band,
   CRIB,
-  ITEMS,
+  EDITIONS,
+  editionItems,
+  editionOf,
   read,
   SCALES,
   score,
+  type EditionId,
   type Mark,
 } from "@/lib/inventory";
 import { listSittings, saveSitting, type Sitting } from "@/lib/sittings";
@@ -19,12 +22,13 @@ type Phase = "cover" | "book" | "profile" | "crib";
 
 type Save = {
   id: string | null;
+  edition: EditionId;
   phase: Phase;
   index: number;
   answers: Record<number, Mark>;
 };
 
-const EMPTY: Save = { id: null, phase: "cover", index: 0, answers: {} };
+const EMPTY: Save = { id: null, edition: "tiny", phase: "cover", index: 0, answers: {} };
 
 function loadSave(): Save {
   try {
@@ -32,10 +36,13 @@ function loadSave(): Save {
     if (!raw) return EMPTY;
     const parsed = JSON.parse(raw) as Save;
     if (!parsed || typeof parsed.index !== "number" || !parsed.answers) return EMPTY;
+    const edition = editionOf(parsed.edition);
+    const length = editionItems(edition).length;
     return {
       id: typeof parsed.id === "string" ? parsed.id : null,
+      edition,
       phase: parsed.phase ?? "cover",
-      index: Math.min(Math.max(0, parsed.index), ITEMS.length - 1),
+      index: Math.min(Math.max(0, parsed.index), length - 1),
       answers: parsed.answers,
     };
   } catch {
@@ -83,6 +90,7 @@ function Home() {
       void saveSitting({
         data: {
           id: save.id,
+          edition: save.edition,
           phase: save.phase,
           index: save.index,
           answers: save.answers,
@@ -98,19 +106,22 @@ function Home() {
   }, [save, ready]);
 
   function reset() {
-    setSave({ ...EMPTY, id: crypto.randomUUID() });
+    setSave((s) => ({ ...EMPTY, edition: s.edition, id: crypto.randomUUID() }));
     setKept(false);
   }
 
   function resume(row: Sitting) {
+    const edition = editionOf(row.edition);
+    const length = editionItems(edition).length;
     const answers: Record<number, Mark> = {};
     for (const [key, mark] of Object.entries(row.answers ?? {})) {
       if (mark === "T" || mark === "F" || mark === "?") answers[Number(key)] = mark;
     }
     setSave({
       id: row.id,
+      edition,
       phase: row.phase === "crib" ? "profile" : row.phase,
-      index: Math.min(Math.max(0, row.item_index), ITEMS.length - 1),
+      index: Math.min(Math.max(0, row.item_index), length - 1),
       answers,
     });
   }
@@ -121,14 +132,24 @@ function Home() {
         <Header
           phase={save.phase}
           index={save.index}
+          length={editionItems(save.edition).length}
           onCover={() => setSave((s) => ({ ...s, phase: "cover" }))}
         />
         {save.phase === "cover" && (
           <Cover
             ready={ready}
             kept={kept}
+            edition={save.edition}
             continuing={answerCount(save.answers) > 0}
             past={past}
+            onEdition={(edition) => {
+              setKept(false);
+              setSave((current) =>
+                current.edition === edition
+                  ? current
+                  : { ...EMPTY, edition },
+              );
+            }}
             onStart={() => {
               if (!ready) return;
               setSave((s) => ({
@@ -147,14 +168,17 @@ function Home() {
         )}
         {save.phase === "book" && (
           <Book
+            items={editionItems(save.edition)}
             index={save.index}
             answers={save.answers}
             onMark={(mark) => {
-              const item = ITEMS[save.index];
+              const items = editionItems(save.edition);
+              const item = items[save.index];
               const answers = { ...save.answers, [item.id]: mark };
-              const last = save.index >= ITEMS.length - 1;
+              const last = save.index >= items.length - 1;
               setSave({
                 id: save.id ?? crypto.randomUUID(),
+                edition: save.edition,
                 phase: last ? "profile" : "book",
                 index: last ? save.index : save.index + 1,
                 answers,
@@ -171,6 +195,7 @@ function Home() {
         )}
         {save.phase === "profile" && (
           <Profile
+            edition={save.edition}
             answers={save.answers}
             kept={kept}
             onAgain={reset}
@@ -182,7 +207,10 @@ function Home() {
             onBack={() =>
               setSave((s) => ({
                 ...s,
-                phase: Object.keys(s.answers).length >= ITEMS.length ? "profile" : "cover",
+                phase:
+                  Object.keys(s.answers).length >= editionItems(s.edition).length
+                    ? "profile"
+                    : "cover",
               }))
             }
           />
@@ -195,10 +223,12 @@ function Home() {
 function Header({
   phase,
   index,
+  length,
   onCover,
 }: {
   phase: Phase;
   index: number;
+  length: number;
   onCover: () => void;
 }) {
   return (
@@ -211,7 +241,7 @@ function Header({
         Minnesota Practice
       </button>
       <p className="text-xs text-mist tabular-nums">
-        {phase === "book" ? `${index + 1} of ${ITEMS.length}` : "16 lines"}
+        {phase === "book" ? `${index + 1} of ${length}` : `${length} lines`}
       </p>
     </header>
   );
@@ -220,41 +250,64 @@ function Header({
 function Cover({
   ready,
   kept,
+  edition,
   continuing,
   past,
+  onEdition,
   onStart,
   onResume,
   onCrib,
 }: {
   ready: boolean;
   kept: boolean;
+  edition: EditionId;
   continuing: boolean;
   past: Sitting[];
+  onEdition: (edition: EditionId) => void;
   onStart: () => void;
   onResume: (row: Sitting) => void;
   onCrib: () => void;
 }) {
+  const chosen = EDITIONS.find((item) => item.id === edition) ?? EDITIONS[0];
   return (
     <section className="flex flex-1 flex-col">
-      <p className="text-xs tracking-widest text-mist uppercase">Short form</p>
+      <p className="text-xs tracking-widest text-mist uppercase">Practice forms</p>
       <h1 className="mt-3 font-serif text-5xl leading-tight tracking-tight">
         Minnesota
         <br />
         Practice
       </h1>
       <p className="mt-6 max-w-sm text-base leading-relaxed text-mist">
-        Sixteen original true or false lines, so you can rehearse the booklet
-        before a real sitting. Answer for the past few weeks. Each finished
-        booklet stays in the record.
+        Original true or false lines, in four lengths. Start with the very
+        small form. Answer for the past few weeks. Each sitting stays in the
+        record.
       </p>
-      <div className="mt-10 flex flex-col gap-3">
+      <ul className="mt-8 border-t border-rule">
+        {EDITIONS.map((item) => {
+          const active = item.id === edition;
+          return (
+            <li key={item.id} className="border-b border-rule">
+              <button
+                type="button"
+                onClick={() => onEdition(item.id)}
+                aria-pressed={active}
+                className="flex w-full items-baseline justify-between py-3 text-left"
+              >
+                <span className={active ? "text-sm" : "text-sm text-mist"}>{item.name}</span>
+                <span className="text-xs text-mist tabular-nums">{item.length} lines</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-8 flex flex-col gap-3">
         <button
           type="button"
           onClick={onStart}
           disabled={!ready}
           className="h-12 bg-lake px-6 text-on-lake disabled:opacity-60"
         >
-          {continuing ? "Continue" : "Open booklet"}
+          {continuing ? `Continue ${chosen.name.toLowerCase()}` : `Open ${chosen.name.toLowerCase()}`}
         </button>
         <button
           type="button"
@@ -267,18 +320,23 @@ function Cover({
       {past.length > 0 && (
         <ul className="mt-10 border-t border-rule">
           {past.map((row) => {
+            const form = EDITIONS.find((item) => item.id === editionOf(row.edition));
+            const length = form?.length ?? 16;
             const answered = row.profile?.answered ?? answerCount(row.answers ?? {});
-            const done = answered >= ITEMS.length;
+            const done = answered >= length;
             return (
               <li key={row.id} className="border-b border-rule">
                 <button
                   type="button"
                   onClick={() => onResume(row)}
-                  className="flex w-full items-baseline justify-between py-3 text-left"
+                  className="flex w-full items-baseline justify-between gap-4 py-3 text-left"
                 >
-                  <span className="text-sm">{when(row.updated_at)}</span>
-                  <span className="text-xs text-mist tabular-nums">
-                    {done ? "Finished" : `${answered} of 16`}
+                  <span className="text-sm">
+                    {form?.name ?? "Small"}
+                    <span className="text-mist"> · {when(row.updated_at)}</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-mist tabular-nums">
+                    {done ? "Finished" : `${answered} of ${length}`}
                     {row.profile?.clash ? ` · ${row.profile.clash} clash` : ""}
                   </span>
                 </button>
@@ -296,19 +354,21 @@ function Cover({
 }
 
 function Book({
+  items,
   index,
   answers,
   onMark,
   onBack,
 }: {
+  items: readonly { id: number; text: string }[];
   index: number;
   answers: Record<number, Mark>;
   onMark: (mark: Mark) => void;
   onBack: () => void;
 }) {
-  const item = ITEMS[index];
+  const item = items[index];
   const chosen = answers[item.id];
-  const progress = index / ITEMS.length;
+  const progress = index / items.length;
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -389,17 +449,19 @@ function Choice({
 }
 
 function Profile({
+  edition,
   answers,
   kept,
   onAgain,
   onCrib,
 }: {
+  edition: EditionId;
   answers: Record<number, Mark>;
   kept: boolean;
   onAgain: () => void;
   onCrib: () => void;
 }) {
-  const profile = score(answers);
+  const profile = score(answers, edition);
   const lines = read(profile);
 
   return (
