@@ -393,6 +393,35 @@ export function score(answers: Record<number, Mark>, edition: EditionId = "small
   };
 }
 
+/** Running profile: only lines already marked. The denominator grows with the sitting. */
+export function scoreSoFar(answers: Record<number, Mark>, edition: EditionId): Profile {
+  const counts = emptyCounts();
+  const max = emptyCounts();
+  let blank = 0;
+  let trueCount = 0;
+  let falseCount = 0;
+
+  for (const item of editionItems(edition)) {
+    const mark = answers[item.id];
+    if (mark !== "T" && mark !== "F" && mark !== "?") continue;
+    max[item.scale] += 1;
+    if (mark === "?") blank += 1;
+    if (mark === "T") trueCount += 1;
+    if (mark === "F") falseCount += 1;
+    if (mark === item.when) counts[item.scale] += 1;
+  }
+
+  return {
+    counts,
+    max,
+    clash: 0,
+    clashPairs: [],
+    blank,
+    trueCount,
+    falseCount,
+  };
+}
+
 export function band(n: number, m: number): Band {
   if (m <= 0 || n <= 0) return "quiet";
   if (n * 3 >= m * 2) return "raised";

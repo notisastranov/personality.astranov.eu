@@ -17,6 +17,7 @@ import {
   SCALE_SEARCH,
   SCALES,
   score,
+  scoreSoFar,
   T_SCORE,
   type EditionId,
   type Mark,
@@ -179,6 +180,7 @@ function Home() {
         )}
         {save.phase === "book" && (
           <Book
+            edition={save.edition}
             items={editionItems(save.edition)}
             index={save.index}
             answers={save.answers}
@@ -374,12 +376,14 @@ function Cover({
 }
 
 function Book({
+  edition,
   items,
   index,
   answers,
   onMark,
   onBack,
 }: {
+  edition: EditionId;
   items: readonly { id: number; text: string; scale: ScaleId; when: "T" | "F" }[];
   index: number;
   answers: Record<number, Mark>;
@@ -389,6 +393,7 @@ function Book({
   const item = items[index];
   const chosen = answers[item.id];
   const progress = index / items.length;
+  const live = scoreSoFar(answers, edition);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -423,6 +428,11 @@ function Book({
         {item.text}
       </h2>
       <p className="mt-4 text-sm leading-relaxed text-mist">{lookingFor(item)}</p>
+      <ProfileGraph profile={live} active={item.scale} />
+      <p className="mt-2 text-xs leading-relaxed text-mist">
+        So far, among the lines already marked. The point moves when a line for
+        that scale is marked. The limits are the same two lines as the final profile.
+      </p>
       <div className="mt-10 grid grid-cols-2 gap-3">
         <Choice label="True" mark="T" chosen={chosen} onMark={onMark} />
         <Choice label="False" mark="F" chosen={chosen} onMark={onMark} />
@@ -473,7 +483,13 @@ function Choice({
   );
 }
 
-function ProfileGraph({ profile }: { profile: ScoreProfile }) {
+function ProfileGraph({
+  profile,
+  active,
+}: {
+  profile: ScoreProfile;
+  active?: ScaleId;
+}) {
   const scales = SCALES.filter((scale) => profile.max[scale.id] > 0);
   const width = Math.max(320, scales.length * 56);
   const height = 228;
@@ -517,20 +533,28 @@ function ProfileGraph({ profile }: { profile: ScoreProfile }) {
         <text x={padL + 2} y={yOrdinary - 4} fill="#6e675f" fontSize="10">
           Ordinary limit
         </text>
-        <path d={path} fill="none" stroke="#1c1916" strokeWidth="1.5" />
+        {points.length > 1 && (
+          <path d={path} fill="none" stroke="#1c1916" strokeWidth="1.5" />
+        )}
         {points.map((point) => (
           <g key={point.scale.id}>
             <circle
               cx={point.x}
               cy={point.y}
-              r="3.5"
-              fill={point.ratio + 1e-9 >= QUESTION_LIMIT ? "#1e4d68" : "#1c1916"}
+              r={point.scale.id === active ? 5 : 3.5}
+              fill={
+                point.scale.id === active
+                  ? "#1e4d68"
+                  : point.ratio + 1e-9 >= QUESTION_LIMIT
+                    ? "#1e4d68"
+                    : "#1c1916"
+              }
             />
             <text
               x={point.x}
               y={height - 12}
               textAnchor="middle"
-              fill="#1c1916"
+              fill={point.scale.id === active ? "#1e4d68" : "#1c1916"}
               fontSize="11"
             >
               {point.scale.cousin}
